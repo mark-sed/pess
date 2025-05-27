@@ -53,8 +53,16 @@ class Move {
 
 class Game {
 
-    fun Game(moves:List) {
+    enum Result {
+        NOT_FINISHED
+        DRAW
+        WHITE_WIN
+        BLACK_WIN
+    }
+
+    fun Game(moves:List, result:Result=Result.NOT_FINISHED) {
         this.moves = moves
+        this.result = result
     }
 
     fun __String() {
@@ -71,6 +79,7 @@ class Game {
             txt ++= "\n"
             mnum += 1
         }
+        txt ++= f"Result: {this.result}\n"
         return txt
     }
 }
@@ -123,15 +132,136 @@ class Board {
 
 space pgn {
 
+class PGNScanner {
+    enum TokenType {
+        MOVE_NUMBER,
+        COLUMN,
+        ROW,
+        PIECE,
+        CHECK,
+        MATE,
+        RESULT,
+        TAKES,
+        PROMOTION,
+        SHORT_CASTLE,
+        LONG_CASTLE,
+        WS,
+        END
+    }
+    
+    class PGNToken {
+        fun PGNToken(type:TokenType, value:String) {
+            this.type = type
+            this.value = value
+        }
+
+        fun __String() {
+            return "(" ++ this.type ++ ")" ++ this.value
+        }
+    }
+
+    fun PGNScanner(txt:String) {
+        this.txt = txt
+        this.tokens = []
+        this.curr_token = 0
+        ~tokenize(txt)
+    }
+
+    fun tokenize(txt:String) {
+        i = 0
+        while (i < txt.length()) {
+            c = txt[i]
+            token = nil
+            if (ord(c) >= 48 and ord(c) <= 57) { // "0" - "9"
+                if (i+4 < txt.length() && txt[i..i+5] == "0-0-0") {
+                    token = PGNToken(TokenType.LONG_CASTLE, "0-0-0")
+                    i += 4
+                } else if (i+2 < txt.length() && txt[i..i+3] == "0-0") {
+                    token = PGNToken(TokenType.SHORT_CASTLE, "0-0")
+                    i += 2
+                } else if (i+1 < txt.length() && txt[i+1] == ".") {
+                    i += 1
+                    token = PGNToken(TokenType.MOVE_NUMBER, c++".")
+                } else if (i+1 < txt.length() && txt[i+1] == "-") { // 1-0, 0-1
+                    assert(i + 2 < txt.length(), "Incorrect result")
+                    res = txt[i..i+3]
+                    assert(res == "1-0" or res == "0-1", "Incorrect result value")
+                    token = PGNToken(TokenType.RESULT, res)
+                    i += 2
+                } else if (i+1 < txt.length() && txt[i+1] == "/") { // 1/2-1/2
+                    assert(i + 6 < txt.length(), "Incorrect draw result")
+                    res = txt[i..i+7]
+                    assert(res == "1/2-1/2", "Incorrect draw result value")
+                    token = PGNToken(TokenType.RESULT, res)
+                    i += 6
+                } else {
+                    assert(c != "9" and c != "0", "Rows are 1 to 9, but found: "++c)
+                    token = PGNToken(TokenType.ROW, c)
+                }
+            } else if (ord(c) >= 97 and ord(c) <= 104) {
+                token = PGNToken(TokenType.COLUMN, c)
+            } else if (i+4 < txt.length() && txt[i..i+5] == "O-O-O") {
+                token = PGNToken(TokenType.LONG_CASTLE, "O-O-O")
+                i += 4
+            } else if (i+2 < txt.length() && txt[i..i+3] == "O-O") {
+                token = PGNToken(TokenType.SHORT_CASTLE, "O-O")
+                i += 2
+            } else {
+                type = nil
+                switch(c) {
+                    case " ", "\t", "\n": type = TokenType.WS
+                    case "K", "Q", "R", "B", "N": type = TokenType.PIECE
+                    case "+": type = TokenType.CHECK
+                    case "#": type = TokenType.MATE
+                    case "x": type = TokenType.TAKES
+                    case "*": type = TokenType.RESULT
+                    default: assert(false, "Unknown symbol: " ++ c)
+                }
+                token = PGNToken(type, c)
+            }
+            ~this.tokens.append(token)
+            i += 1
+        }
+    }
+
+    fun advance() {
+        if (curr_token >= this.tokens.length()) {
+            return PGNToken(TokenType.END, "")
+        }
+        t = this.tokens[curr_token]
+        curr_token += 1
+        return t
+    }
+
+    fun check(type:TokenType) {
+        if (curr_token >= this.tokens.length()) {
+            return false
+        }
+        return this.tokens[curr_token] == type
+    }
+
+    fun __String() {
+        txt = "["
+        first = true
+        for (t: this.tokens) {
+            if (not first)
+                txt ++= ", "
+            txt ++= t
+            first = false
+        }
+        txt ++= "]"
+        return txt
+    }
+}
+
 fun parse_pgn(game:String) {
     // TODO: Remove tags
     // TODO: Remove comments
-    move_num = 1
-    for (l: game) {
-        if (l == move_num++".") {
-            
-        }
-    }
+    scanner = pgn.PGNScanner(game)
+    moves = []
+    result = Game.Result.NOT_FINISHED
+    // Parse tokens
+    return Game(moves, result)
 }
 
 }
