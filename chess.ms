@@ -132,22 +132,23 @@ class Board {
 
 space pgn {
 
+enum TokenType {
+    MOVE_NUMBER,
+    COLUMN,
+    ROW,
+    PIECE,
+    CHECK,
+    MATE,
+    RESULT,
+    TAKES,
+    PROMOTION,
+    SHORT_CASTLE,
+    LONG_CASTLE,
+    WS,
+    END
+}
+
 class PGNScanner {
-    enum TokenType {
-        MOVE_NUMBER,
-        COLUMN,
-        ROW,
-        PIECE,
-        CHECK,
-        MATE,
-        RESULT,
-        TAKES,
-        PROMOTION,
-        SHORT_CASTLE,
-        LONG_CASTLE,
-        WS,
-        END
-    }
     
     class PGNToken {
         fun PGNToken(type:TokenType, value:String) {
@@ -179,9 +180,15 @@ class PGNScanner {
                 } else if (i+2 < txt.length() && txt[i..i+3] == "0-0") {
                     token = PGNToken(TokenType.SHORT_CASTLE, "0-0")
                     i += 2
-                } else if (i+1 < txt.length() && txt[i+1] == ".") {
+                } else if (i+1 < txt.length() && (txt[i+1] == "." || (ord(txt[i+1]) >= 48 && ord(txt[i+1]) <= 57))) {
+                    num = c
                     i += 1
-                    token = PGNToken(TokenType.MOVE_NUMBER, c++".")
+                    while (ord(txt[i]) >= 48 and ord(txt[i]) <= 57) {
+                        num ++= txt[i]
+                        i += 1
+                    }
+                    assert(txt[i] == ".", "Expected '.' after move number")
+                    token = PGNToken(TokenType.MOVE_NUMBER, num++".")
                 } else if (i+1 < txt.length() && txt[i+1] == "-") { // 1-0, 0-1
                     assert(i + 2 < txt.length(), "Incorrect result")
                     res = txt[i..i+3]
@@ -198,7 +205,7 @@ class PGNScanner {
                     assert(c != "9" and c != "0", "Rows are 1 to 9, but found: "++c)
                     token = PGNToken(TokenType.ROW, c)
                 }
-            } else if (ord(c) >= 97 and ord(c) <= 104) {
+            } else if (ord(c) >= 97 and ord(c) <= 104) { // a-h
                 token = PGNToken(TokenType.COLUMN, c)
             } else if (i+4 < txt.length() && txt[i..i+5] == "O-O-O") {
                 token = PGNToken(TokenType.LONG_CASTLE, "O-O-O")
@@ -225,19 +232,31 @@ class PGNScanner {
     }
 
     fun advance() {
-        if (curr_token >= this.tokens.length()) {
+        if (this.curr_token >= this.tokens.length()) {
             return PGNToken(TokenType.END, "")
         }
-        t = this.tokens[curr_token]
-        curr_token += 1
+        t = this.tokens[this.curr_token]
+        this.curr_token += 1
         return t
     }
 
     fun check(type:TokenType) {
-        if (curr_token >= this.tokens.length()) {
-            return false
+        if (this.curr_token >= this.tokens.length()) {
+            return type == TokenType.END
         }
-        return this.tokens[curr_token] == type
+        return this.tokens[this.curr_token].type == type
+    }
+
+    fun expect(type:TokenType, msg:String) {
+        t = advance()
+        assert(t.type == type, msg)
+        return t.value
+    }
+
+    fun skip_ws() {
+        while(check(TokenType.WS)) {
+            ~advance()
+        }
     }
 
     fun __String() {
@@ -254,6 +273,102 @@ class PGNScanner {
     }
 }
 
+space {
+
+fun letter2piece(l:String, white:Bool) {
+    switch(l) {
+        case "p": return white ? Pieces.w_pawn : Pieces.b_pawn
+        case "K": return white ? Pieces.w_king : Pieces.b_king
+        case "Q": return white ? Pieces.w_queen : Pieces.b_queen
+        case "B": return white ? Pieces.w_bishop : Pieces.b_bishop
+        case "R": return white ? Pieces.w_rook : Pieces.b_rook
+        case "N": return white ? Pieces.w_knight : Pieces.b_knight
+        default: assert(false, f"Unknown piece: '{l}'")
+    }
+    return nil
+}
+
+fun parse_move(scanner:PGNScanner, white:Bool) {
+    if (scanner.check(TokenType.SHORT_CASTLE)) {
+        ~scanner.advance()
+        // TODO
+        return nil
+    }
+    if (scanner.check(TokenType.LONG_CASTLE)) {
+        ~scanner.advance()
+        // TODO
+        return nil
+    }
+    piece = nil
+    column1 = nil
+    column2 = nil
+    row1 = nil
+    row2 = nil
+    takes = false
+    promotion_piece = nil
+    check = false
+    mate = false
+    if (scanner.check(TokenType.PIECE)) {
+        t = scanner.advance()
+        assert(t.value != "p", "p should not be in PGN")
+        piece = letter2piece(t.value, true)
+    }
+    if (scanner.check(TokenType.COLUMN)) {
+        column1 = scanner.advance().value
+        if (scanner.check(TokenType.COLUMN)) {
+            assert(piece != nil, "Piece specification without piece")
+            column2 = scanner.advance().value
+        }
+    }
+    if (scanner.check(TokenType.ROW)) {
+        if (column1 == nil) {
+            assert(piece != nil, "Piece specification without piece")
+            row1 = scanner.advance().value
+            column2 = scanner.expect(TokenType.COLUMN, "Expected target square (column) after piece specification")
+            row2 = scanner.expect(TokenType.ROW, "Expected target square (row) after piece specification")
+        } else if (column2 == nil) {
+            row1 = scanner.advance().value
+        } else
+            row2 = scanner.advance().value
+    }
+    if (scanner.check(TokenType.TAKES)) {
+        assert(column1 != nil or row1 != nil or piece != nil, "takes without specifying who")
+        ~scanner.advance()
+        takes = true
+        column2 = scanner.expect(TokenType.COLUMN, "Expected target square (column) after 'x'")
+        row2 = scanner.expect(TokenType.ROW, "Expected target square (row) after 'x'")
+    }
+    if (scanner.check(TokenType.PROMOTION)) {
+        assert(column1 != nil or row1 != nil or piece != nil, "promotes without specifying who")
+        ~scanner.advance()
+        promotion_piece = scanner.expect(TokenType.PIECE, "Expecting piece name after promotion")
+    }
+    if (scanner.check(TokenType.CHECK)) {
+        ~scanner.advance()
+        check = true
+    }
+    if (scanner.check(TokenType.MATE)) {
+        ~scanner.advance()
+        mate = true
+    }
+    // TODO: Convert to Move
+    notation = ""
+    notation ++= piece != nil ? piece : ""
+    notation ++= column1 != nil ? column1 : ""
+    notation ++= row1 != nil ? row1 : ""
+    notation ++= takes ? "x" : ""
+    notation ++= column2 != nil ? column2 : ""
+    notation ++= row2 != nil ? row2 : ""
+    if (promotion_piece != nil) {
+        notation ++= "="++promotion_piece
+    }
+    notation ++= check ? "+" : ""
+    notation ++= mate ? "#" : ""
+    return notation
+}
+
+}
+
 fun parse_pgn(game:String) {
     // TODO: Remove tags
     // TODO: Remove comments
@@ -261,6 +376,31 @@ fun parse_pgn(game:String) {
     moves = []
     result = Game.Result.NOT_FINISHED
     // Parse tokens
+    while (not scanner.check(TokenType.END)) {
+        ~scanner.skip_ws()
+        if (scanner.check(TokenType.MOVE_NUMBER)) {
+            // Assert move number?
+            ~scanner.advance()
+            ~scanner.skip_ws()
+            ~moves.append(parse_move(scanner, true))
+            ~scanner.expect(TokenType.WS, "Expected white space after move")
+            ~scanner.skip_ws()
+            if (scanner.check(TokenType.END))
+                break
+            ~moves.append(parse_move(scanner, false))
+        } else if (scanner.check(TokenType.RESULT)) {
+            t = scanner.advance()
+            switch(t.value) {
+                case "*": result = Game.Result.NOT_FINISHED
+                case "1-0": result = Game.Result.WHITE_WIN
+                case "0-1": result = Game.Result.BLACK_WIN
+                case "1/2-1/2": result = Game.Result.DRAW
+                default: assert(false, "Incorrect result in RESULT")
+            }
+        } else {
+            assert(false, "Misplaced token: "++scanner.advance())
+        }
+    }
     return Game(moves, result)
 }
 
