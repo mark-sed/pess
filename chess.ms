@@ -51,6 +51,19 @@ class Move {
     }
 }
 
+class CastleMove : Move {
+    fun CastleMove(short:Bool, white:Bool, notation:String) {
+        this.castle = true
+        this.short = short
+        this.white = white
+        this.notation = notation
+    }
+
+    fun __String() {
+        return this.short ? "[short castle]" : "[long castle]"
+    }
+}
+
 class Game {
 
     enum Result {
@@ -102,8 +115,8 @@ class Board {
     }
 
     fun apply_move(move:Move) {
-        this.board[move.to[0]][move.to[1]] = this.board[move.from[0]][move.from[1]]
-        this.board[move.from[0]][move.from[1]] = nil
+        this.board[move.to[1]][move.to[0]] = this.board[move.from[1]][move.from[0]]
+        this.board[move.from[1]][move.from[0]] = nil
     }
 
     fun move(num:Int=1) {
@@ -288,16 +301,91 @@ fun letter2piece(l:String, white:Bool) {
     return nil
 }
 
-fun parse_move(scanner:PGNScanner, white:Bool) {
+fun piece2letter(piece:Pieces) {
+    switch(piece) {
+        case Pieces.w_pawn, Pieces.b_pawn: return "p"
+        case Pieces.w_king, Pieces.b_king: return "K"
+        case Pieces.w_queen, Pieces.b_queen: return "Q"
+        case Pieces.w_bishop, Pieces.b_bishop: return "B"
+        case Pieces.w_rook, Pieces.b_rook: return "R"
+        case Pieces.w_knight, Pieces.b_knight: return "N"
+        default: assert(false, f"Unknown piece: '{piece}'")
+    }
+    return nil
+}
+
+fun get_piece_dst(board:Board, piece:Pieces) {
+    squares = []
+    brd = board.board
+    row_num = 0
+    for (r: brd) {
+        col_num = 0
+        for (p: r) {
+            if (p == piece) {
+                switch (p) {
+                    case Pieces.w_pawn: {
+                        ~squares.append([[col_num, row_num + 1], [col_num, row_num]])
+                        ~squares.append([[col_num, row_num + 2], [col_num, row_num]])
+                    }
+                    case Pieces.b_pawn: {
+                        ~squares.append([[col_num, row_num - 1], [col_num, row_num]])
+                        ~squares.append([[col_num, row_num - 2], [col_num, row_num]])
+                    }
+                    // TODO: 
+                }
+            }
+            col_num += 1
+        }
+        row_num += 1
+    }
+
+    return squares
+}
+
+fun find_source(board:Board, to:List, piece:Pieces, col, row) {
+    brd = board.board
+    possible = []
+    row_num = 0
+    for (r: brd) {
+        col_num = 0
+        for (p: r) {
+            if (p == piece)
+                ~possible.append([col_num, row_num])
+            col_num += 1
+        }
+        row_num += 1
+    }
+
+    assert(possible.length() >= 1, f"Impossible move '{to}'")
+    if (possible.length() == 1)
+        return possible[0]
+    for (pos: possible) {
+        if (col != nil && pos[0] == col) {
+            return pos
+        }
+        if (row != nil && pos[1] == row) {
+            return pos
+        }
+    }
+
+    dsts = get_piece_dst(board, piece)
+    for (d: dsts) {
+        if (to == d[0]) {
+            return d[1]
+        }
+    }
+
+    assert(false, f"Incorrectly specified move '{to}'")
+}
+
+fun parse_move(scanner:PGNScanner, white:Bool, board:Board) {
     if (scanner.check(TokenType.SHORT_CASTLE)) {
         ~scanner.advance()
-        // TODO
-        return nil
+        return CastleMove(true, white, "0-0")
     }
     if (scanner.check(TokenType.LONG_CASTLE)) {
         ~scanner.advance()
-        // TODO
-        return nil
+        return CastleMove(false, white, "0-0-0")
     }
     piece = nil
     column1 = nil
@@ -353,7 +441,7 @@ fun parse_move(scanner:PGNScanner, white:Bool) {
     }
     // TODO: Convert to Move
     notation = ""
-    notation ++= piece != nil ? piece : ""
+    notation ++= piece != nil ? piece2letter(piece) : ""
     notation ++= column1 != nil ? column1 : ""
     notation ++= row1 != nil ? row1 : ""
     notation ++= takes ? "x" : ""
@@ -364,7 +452,32 @@ fun parse_move(scanner:PGNScanner, white:Bool) {
     }
     notation ++= check ? "+" : ""
     notation ++= mate ? "#" : ""
-    return notation
+    
+    from = nil
+    to = nil
+    if (piece == nil)
+        piece = white ? Pieces.w_pawn : Pieces.b_pawn
+    if (row1 != nil)
+        row1 = Int(row1) - 1
+    if (column1 != nil)
+        column1 = ord(column1) - 97
+    if (row2 != nil)
+        row2 = Int(row2) - 1
+    if (column2 != nil)
+        column2 = ord(column2) - 97
+
+    if (column2 != nil && row2 != nil) {
+        to = [column2, row2]
+        if (column1 != nil && row1 != nil) {
+            from = [column1, row1]
+        } else {
+            from = find_source(board, to, piece, column1, row1)
+        }
+    } else {
+        to = [column1, row1]
+        from = find_source(board, to, piece, nil, nil)
+    }
+    return Move(from, to, piece, notation)
 }
 
 }
@@ -375,6 +488,8 @@ fun parse_pgn(game:String) {
     scanner = pgn.PGNScanner(game)
     moves = []
     result = Game.Result.NOT_FINISHED
+    game = Game([], Game.Result.NOT_FINISHED)
+    board = Board(game)
     // Parse tokens
     while (not scanner.check(TokenType.END)) {
         ~scanner.skip_ws()
@@ -382,12 +497,12 @@ fun parse_pgn(game:String) {
             // Assert move number?
             ~scanner.advance()
             ~scanner.skip_ws()
-            ~moves.append(parse_move(scanner, true))
+            ~moves.append(parse_move(scanner, true, board))
             ~scanner.expect(TokenType.WS, "Expected white space after move")
             ~scanner.skip_ws()
             if (scanner.check(TokenType.END))
                 break
-            ~moves.append(parse_move(scanner, false))
+            ~moves.append(parse_move(scanner, false, board))
         } else if (scanner.check(TokenType.RESULT)) {
             t = scanner.advance()
             switch(t.value) {
