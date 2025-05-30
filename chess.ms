@@ -44,6 +44,7 @@ class Move {
         this.to = to
         this.piece = piece
         this.notation = notation
+        this.castle = false
     }
 
     fun __String() {
@@ -115,8 +116,35 @@ class Board {
     }
 
     fun apply_move(move:Move) {
-        this.board[move.to[1]][move.to[0]] = this.board[move.from[1]][move.from[0]]
-        this.board[move.from[1]][move.from[0]] = nil
+        if (move.castle) {
+            col1 = 0
+            row1 = 0
+            col2 = 0
+            row2 = 0
+            if (move.short and move.white) {
+                col1 = row1 = 0
+                col2 = 4
+                row2 = 0
+            } else if (not move.short and move.white) {
+                col1 = 7
+                row1 = 0
+                col2 = 4
+                row2 = 0
+            } else if (move.short and not move.white) {
+                col1 = 0
+                row1 = 7
+                col2 = 4
+                row2 = 7
+            } else {
+                col1 = 7
+                row1 = 7
+                col2 = 4
+                row2 = 7
+            }
+        } else {
+            this.board[move.to[1]][move.to[0]] = this.board[move.from[1]][move.from[0]]
+            this.board[move.from[1]][move.from[0]] = nil
+        }
     }
 
     fun move(num:Int=1) {
@@ -323,6 +351,7 @@ fun get_piece_dst(board:Board, piece:Pieces) {
         for (p: r) {
             if (p == piece) {
                 switch (p) {
+                    // TODO: Dont add impossible moves
                     case Pieces.w_pawn: {
                         ~squares.append([[col_num, row_num + 1], [col_num, row_num]])
                         ~squares.append([[col_num, row_num + 2], [col_num, row_num]])
@@ -331,7 +360,48 @@ fun get_piece_dst(board:Board, piece:Pieces) {
                         ~squares.append([[col_num, row_num - 1], [col_num, row_num]])
                         ~squares.append([[col_num, row_num - 2], [col_num, row_num]])
                     }
-                    // TODO: 
+                    case Pieces.w_rook, Pieces.b_rook: {
+                        for (i: -7..8) {
+                            ~squares.append([[col_num, row_num + i], [col_num, row_num]])
+                            ~squares.append([[col_num + i, row_num], [col_num, row_num]])
+                        }
+                    }
+                    case Pieces.w_knight, Pieces.b_knight: {
+                        ~squares.append([[col_num + 2, row_num + 1], [col_num, row_num]])
+                        ~squares.append([[col_num + 2, row_num - 1], [col_num, row_num]])
+                        ~squares.append([[col_num - 2, row_num + 1], [col_num, row_num]])
+                        ~squares.append([[col_num - 2, row_num - 1], [col_num, row_num]])
+                        ~squares.append([[col_num + 1, row_num + 2], [col_num, row_num]])
+                        ~squares.append([[col_num + 1, row_num - 2], [col_num, row_num]])
+                        ~squares.append([[col_num - 1, row_num + 2], [col_num, row_num]])
+                        ~squares.append([[col_num - 1, row_num - 2], [col_num, row_num]])
+                    }
+                    case Pieces.w_bishop, Pieces.b_bishop: {
+                        for (i: -7..8) {
+                            ~squares.append([[col_num + i, row_num + i], [col_num, row_num]])
+                            ~squares.append([[col_num - i, row_num + i], [col_num, row_num]])
+                            ~squares.append([[col_num + i, row_num - i], [col_num, row_num]])
+                            ~squares.append([[col_num - i, row_num - i], [col_num, row_num]])
+                        }
+                    }
+                    case Pieces.w_queen, Pieces.b_queen: {
+                        for (i: -7..8) {
+                            ~squares.append([[col_num, row_num + i], [col_num, row_num]])
+                            ~squares.append([[col_num + i, row_num], [col_num, row_num]])
+                            ~squares.append([[col_num + i, row_num + i], [col_num, row_num]])
+                            ~squares.append([[col_num + i, row_num + i], [col_num, row_num]])
+                        }
+                    }
+                    case Pieces.w_king, Pieces.b_king: {
+                        ~squares.append([[col_num + 1, row_num], [col_num, row_num]])     // right
+                        ~squares.append([[col_num - 1, row_num], [col_num, row_num]])     // left
+                        ~squares.append([[col_num, row_num + 1], [col_num, row_num]])     // up
+                        ~squares.append([[col_num, row_num - 1], [col_num, row_num]])     // down
+                        ~squares.append([[col_num + 1, row_num + 1], [col_num, row_num]]) // up-right
+                        ~squares.append([[col_num - 1, row_num + 1], [col_num, row_num]]) // up-left
+                        ~squares.append([[col_num + 1, row_num - 1], [col_num, row_num]]) // down-right
+                        ~squares.append([[col_num - 1, row_num - 1], [col_num, row_num]]) // down-left
+                    }
                 }
             }
             col_num += 1
@@ -370,6 +440,7 @@ fun find_source(board:Board, to:List, piece:Pieces, col, row) {
 
     dsts = get_piece_dst(board, piece)
     for (d: dsts) {
+        d ++ " == " ++ to ++ "\n"
         if (to == d[0]) {
             return d[1]
         }
@@ -379,105 +450,108 @@ fun find_source(board:Board, to:List, piece:Pieces, col, row) {
 }
 
 fun parse_move(scanner:PGNScanner, white:Bool, board:Board) {
+    move = nil
     if (scanner.check(TokenType.SHORT_CASTLE)) {
         ~scanner.advance()
-        return CastleMove(true, white, "0-0")
+        move = CastleMove(true, white, "0-0")
     }
-    if (scanner.check(TokenType.LONG_CASTLE)) {
+    else if (scanner.check(TokenType.LONG_CASTLE)) {
         ~scanner.advance()
-        return CastleMove(false, white, "0-0-0")
-    }
-    piece = nil
-    column1 = nil
-    column2 = nil
-    row1 = nil
-    row2 = nil
-    takes = false
-    promotion_piece = nil
-    check = false
-    mate = false
-    if (scanner.check(TokenType.PIECE)) {
-        t = scanner.advance()
-        assert(t.value != "p", "p should not be in PGN")
-        piece = letter2piece(t.value, true)
-    }
-    if (scanner.check(TokenType.COLUMN)) {
-        column1 = scanner.advance().value
-        if (scanner.check(TokenType.COLUMN)) {
-            assert(piece != nil, "Piece specification without piece")
-            column2 = scanner.advance().value
-        }
-    }
-    if (scanner.check(TokenType.ROW)) {
-        if (column1 == nil) {
-            assert(piece != nil, "Piece specification without piece")
-            row1 = scanner.advance().value
-            column2 = scanner.expect(TokenType.COLUMN, "Expected target square (column) after piece specification")
-            row2 = scanner.expect(TokenType.ROW, "Expected target square (row) after piece specification")
-        } else if (column2 == nil) {
-            row1 = scanner.advance().value
-        } else
-            row2 = scanner.advance().value
-    }
-    if (scanner.check(TokenType.TAKES)) {
-        assert(column1 != nil or row1 != nil or piece != nil, "takes without specifying who")
-        ~scanner.advance()
-        takes = true
-        column2 = scanner.expect(TokenType.COLUMN, "Expected target square (column) after 'x'")
-        row2 = scanner.expect(TokenType.ROW, "Expected target square (row) after 'x'")
-    }
-    if (scanner.check(TokenType.PROMOTION)) {
-        assert(column1 != nil or row1 != nil or piece != nil, "promotes without specifying who")
-        ~scanner.advance()
-        promotion_piece = scanner.expect(TokenType.PIECE, "Expecting piece name after promotion")
-    }
-    if (scanner.check(TokenType.CHECK)) {
-        ~scanner.advance()
-        check = true
-    }
-    if (scanner.check(TokenType.MATE)) {
-        ~scanner.advance()
-        mate = true
-    }
-    // TODO: Convert to Move
-    notation = ""
-    notation ++= piece != nil ? piece2letter(piece) : ""
-    notation ++= column1 != nil ? column1 : ""
-    notation ++= row1 != nil ? row1 : ""
-    notation ++= takes ? "x" : ""
-    notation ++= column2 != nil ? column2 : ""
-    notation ++= row2 != nil ? row2 : ""
-    if (promotion_piece != nil) {
-        notation ++= "="++promotion_piece
-    }
-    notation ++= check ? "+" : ""
-    notation ++= mate ? "#" : ""
-    
-    from = nil
-    to = nil
-    if (piece == nil)
-        piece = white ? Pieces.w_pawn : Pieces.b_pawn
-    if (row1 != nil)
-        row1 = Int(row1) - 1
-    if (column1 != nil)
-        column1 = ord(column1) - 97
-    if (row2 != nil)
-        row2 = Int(row2) - 1
-    if (column2 != nil)
-        column2 = ord(column2) - 97
-
-    if (column2 != nil && row2 != nil) {
-        to = [column2, row2]
-        if (column1 != nil && row1 != nil) {
-            from = [column1, row1]
-        } else {
-            from = find_source(board, to, piece, column1, row1)
-        }
+        move = CastleMove(false, white, "0-0-0")
     } else {
-        to = [column1, row1]
-        from = find_source(board, to, piece, nil, nil)
+        piece = nil
+        column1 = nil
+        column2 = nil
+        row1 = nil
+        row2 = nil
+        takes = false
+        promotion_piece = nil
+        check = false
+        mate = false
+        if (scanner.check(TokenType.PIECE)) {
+            t = scanner.advance()
+            assert(t.value != "p", "p should not be in PGN")
+            piece = letter2piece(t.value, white)
+        }
+        if (scanner.check(TokenType.COLUMN)) {
+            column1 = scanner.advance().value
+            if (scanner.check(TokenType.COLUMN)) {
+                assert(piece != nil, "Piece specification without piece")
+                column2 = scanner.advance().value
+            }
+        }
+        if (scanner.check(TokenType.ROW)) {
+            if (column1 == nil) {
+                assert(piece != nil, "Piece specification without piece")
+                row1 = scanner.advance().value
+                column2 = scanner.expect(TokenType.COLUMN, "Expected target square (column) after piece specification")
+                row2 = scanner.expect(TokenType.ROW, "Expected target square (row) after piece specification")
+            } else if (column2 == nil) {
+                row1 = scanner.advance().value
+            } else
+                row2 = scanner.advance().value
+        }
+        if (scanner.check(TokenType.TAKES)) {
+            assert(column1 != nil or row1 != nil or piece != nil, "takes without specifying who")
+            ~scanner.advance()
+            takes = true
+            column2 = scanner.expect(TokenType.COLUMN, "Expected target square (column) after 'x'")
+            row2 = scanner.expect(TokenType.ROW, "Expected target square (row) after 'x'")
+        }
+        if (scanner.check(TokenType.PROMOTION)) {
+            assert(column1 != nil or row1 != nil or piece != nil, "promotes without specifying who")
+            ~scanner.advance()
+            promotion_piece = scanner.expect(TokenType.PIECE, "Expecting piece name after promotion")
+        }
+        if (scanner.check(TokenType.CHECK)) {
+            ~scanner.advance()
+            check = true
+        }
+        if (scanner.check(TokenType.MATE)) {
+            ~scanner.advance()
+            mate = true
+        }
+        notation = ""
+        notation ++= piece != nil ? piece2letter(piece) : ""
+        notation ++= column1 != nil ? column1 : ""
+        notation ++= row1 != nil ? row1 : ""
+        notation ++= takes ? "x" : ""
+        notation ++= column2 != nil ? column2 : ""
+        notation ++= row2 != nil ? row2 : ""
+        if (promotion_piece != nil) {
+            notation ++= "="++promotion_piece
+        }
+        notation ++= check ? "+" : ""
+        notation ++= mate ? "#" : ""
+        
+        from = nil
+        to = nil
+        if (piece == nil)
+            piece = white ? Pieces.w_pawn : Pieces.b_pawn
+        if (row1 != nil)
+            row1 = Int(row1) - 1
+        if (column1 != nil)
+            column1 = ord(column1) - 97
+        if (row2 != nil)
+            row2 = Int(row2) - 1
+        if (column2 != nil)
+            column2 = ord(column2) - 97
+
+        if (column2 != nil && row2 != nil) {
+            to = [column2, row2]
+            if (column1 != nil && row1 != nil) {
+                from = [column1, row1]
+            } else {
+                from = find_source(board, to, piece, column1, row1)
+            }
+        } else {
+            to = [column1, row1]
+            from = find_source(board, to, piece, nil, nil)
+        }
+        move = Move(from, to, piece, notation)
     }
-    return Move(from, to, piece, notation)
+    ~board.apply_move(move)
+    return move
 }
 
 }
