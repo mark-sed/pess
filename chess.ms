@@ -122,25 +122,26 @@ class Board {
             col2 = 0
             row2 = 0
             if (move.short and move.white) {
-                col1 = row1 = 0
-                col2 = 4
-                row2 = 0
+                this.board[0][6] = Pieces.w_king
+                this.board[0][4] = nil
+                this.board[0][5] = Pieces.w_rook
+                this.board[0][7] = nil
             } else if (not move.short and move.white) {
-                col1 = 7
-                row1 = 0
-                col2 = 4
-                row2 = 0
+                this.board[0][2] = Pieces.w_king
+                this.board[0][4] = nil
+                this.board[0][3] = Pieces.w_rook
+                this.board[0][0] = nil
             } else if (move.short and not move.white) {
-                col1 = 0
-                row1 = 7
-                col2 = 4
-                row2 = 7
+                this.board[7][6] = Pieces.b_king
+                this.board[7][4] = nil
+                this.board[7][5] = Pieces.b_rook
+                this.board[7][7] = nil
             } else {
-                col1 = 7
-                row1 = 7
-                col2 = 4
-                row2 = 7
-            }
+                this.board[7][2] = Pieces.b_king
+                this.board[7][4] = nil
+                this.board[7][3] = Pieces.b_rook
+                this.board[7][0] = nil
+            }   
         } else {
             this.board[move.to[1]][move.to[0]] = this.board[move.from[1]][move.from[0]]
             this.board[move.from[1]][move.from[0]] = nil
@@ -342,6 +343,10 @@ fun piece2letter(piece:Pieces) {
     return nil
 }
 
+fun is_white(piece:Pieces) {
+    return piece in [Pieces.w_pawn, Pieces.w_rook, Pieces.w_knight, Pieces.w_bishop, Pieces.w_queen, Pieces.w_king]
+}
+
 fun get_piece_dst(board:Board, piece:Pieces) {
     squares = []
     brd = board.board
@@ -354,16 +359,38 @@ fun get_piece_dst(board:Board, piece:Pieces) {
                     // TODO: Dont add impossible moves
                     case Pieces.w_pawn: {
                         ~squares.append([[col_num, row_num + 1], [col_num, row_num]])
-                        ~squares.append([[col_num, row_num + 2], [col_num, row_num]])
+                        if (row_num == 1)
+                            ~squares.append([[col_num, row_num + 2], [col_num, row_num]])
+                        // No need to add take move as it has to have 'x'
                     }
                     case Pieces.b_pawn: {
                         ~squares.append([[col_num, row_num - 1], [col_num, row_num]])
-                        ~squares.append([[col_num, row_num - 2], [col_num, row_num]])
+                        if (row_num == 6)
+                            ~squares.append([[col_num, row_num - 2], [col_num, row_num]])
                     }
                     case Pieces.w_rook, Pieces.b_rook: {
-                        for (i: -7..8) {
-                            ~squares.append([[col_num, row_num + i], [col_num, row_num]])
-                            ~squares.append([[col_num + i, row_num], [col_num, row_num]])
+                        for (d : [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
+                            dx, dy = d
+                            for (i : 1 .. 8) {
+                                x = col_num + dx * i
+                                y = row_num + dy * i
+                                // Skip if out of board bounds
+                                if (x < 0 or x >= 8 or y < 0 or y >= 8) {
+                                    break
+                                }
+
+                                target = brd[y][x]
+
+                                if (target == nil) {
+                                    ~squares.append([[x, y], [col_num, row_num]])
+                                } else {
+                                    // Stop if the piece is the same color
+                                    if (is_white(p) == is_white(target))
+                                        break
+                                    ~squares.append([[x, y], [col_num, row_num]])
+                                    break
+                                }
+                            }
                         }
                     }
                     case Pieces.w_knight, Pieces.b_knight: {
@@ -375,21 +402,58 @@ fun get_piece_dst(board:Board, piece:Pieces) {
                         ~squares.append([[col_num + 1, row_num - 2], [col_num, row_num]])
                         ~squares.append([[col_num - 1, row_num + 2], [col_num, row_num]])
                         ~squares.append([[col_num - 1, row_num - 2], [col_num, row_num]])
+                        // No need to not add squares if it is occupied by same color piece as this is used to
+                        // decide which knight to move and then it has to be specified in the notation
                     }
                     case Pieces.w_bishop, Pieces.b_bishop: {
-                        for (i: -7..8) {
-                            ~squares.append([[col_num + i, row_num + i], [col_num, row_num]])
-                            ~squares.append([[col_num - i, row_num + i], [col_num, row_num]])
-                            ~squares.append([[col_num + i, row_num - i], [col_num, row_num]])
-                            ~squares.append([[col_num - i, row_num - i], [col_num, row_num]])
+                        for (d : [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+                            dx, dy = d
+                            for (i : 1 .. 8) {
+                                x = col_num + dx * i
+                                y = row_num + dy * i
+                                // Skip if out of board bounds
+                                if (x < 0 or x >= 8 or y < 0 or y >= 8) {
+                                    break
+                                }
+
+                                target = brd[y][x]
+
+                                if (target == nil) {
+                                    ~squares.append([[x, y], [col_num, row_num]])
+                                } else {
+                                    // Stop if the piece is the same color
+                                    if (is_white(p) == is_white(target))
+                                        break
+                                    ~squares.append([[x, y], [col_num, row_num]])
+                                    break
+                                }
+                            }
                         }
                     }
                     case Pieces.w_queen, Pieces.b_queen: {
-                        for (i: -7..8) {
-                            ~squares.append([[col_num, row_num + i], [col_num, row_num]])
-                            ~squares.append([[col_num + i, row_num], [col_num, row_num]])
-                            ~squares.append([[col_num + i, row_num + i], [col_num, row_num]])
-                            ~squares.append([[col_num + i, row_num + i], [col_num, row_num]])
+                        // bishop moves
+                        for (d : [[1, 1], [-1, 1], [1, -1], [-1, -1], [1, 0], [-1, 0], [0, -1], [0, 1]]) {
+                            dx, dy = d
+                            for (i : 1 .. 8) {
+                                x = col_num + dx * i
+                                y = row_num + dy * i
+                                // Skip if out of board bounds
+                                if (x < 0 or x >= 8 or y < 0 or y >= 8) {
+                                    break
+                                }
+
+                                target = brd[y][x]
+
+                                if (target == nil) {
+                                    ~squares.append([[x, y], [col_num, row_num]])
+                                } else {
+                                    // Stop if the piece is the same color
+                                    if (is_white(p) == is_white(target))
+                                        break
+                                    ~squares.append([[x, y], [col_num, row_num]])
+                                    break
+                                }
+                            }
                         }
                     }
                     case Pieces.w_king, Pieces.b_king: {
@@ -440,7 +504,6 @@ fun find_source(board:Board, to:List, piece:Pieces, col, row) {
 
     dsts = get_piece_dst(board, piece)
     for (d: dsts) {
-        d ++ " == " ++ to ++ "\n"
         if (to == d[0]) {
             return d[1]
         }
@@ -576,6 +639,8 @@ fun parse_pgn(game:String) {
             ~scanner.skip_ws()
             if (scanner.check(TokenType.END))
                 break
+            if (scanner.check(TokenType.RESULT))
+                continue
             ~moves.append(parse_move(scanner, false, board))
         } else if (scanner.check(TokenType.RESULT)) {
             t = scanner.advance()
