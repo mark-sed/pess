@@ -36,6 +36,10 @@ fun piece2str(p:Pieces, p_for_pawn:Bool=true) {
     }
 }
 
+fun is_white(piece:Pieces) {
+    return piece in [Pieces.w_pawn, Pieces.w_rook, Pieces.w_knight, Pieces.w_bishop, Pieces.w_queen, Pieces.w_king]
+}
+
 class Move {
     fun Move(from:List, to:List, piece:Pieces, notation:String) {
         assert(from.length() == 2, "move starting position has to be 2d array of ints")
@@ -117,10 +121,6 @@ class Board {
 
     fun apply_move(move:Move) {
         if (move.castle) {
-            col1 = 0
-            row1 = 0
-            col2 = 0
-            row2 = 0
             if (move.short and move.white) {
                 this.board[0][6] = Pieces.w_king
                 this.board[0][4] = nil
@@ -341,10 +341,6 @@ fun piece2letter(piece:Pieces) {
         default: assert(false, f"Unknown piece: '{piece}'")
     }
     return nil
-}
-
-fun is_white(piece:Pieces) {
-    return piece in [Pieces.w_pawn, Pieces.w_rook, Pieces.w_knight, Pieces.w_bishop, Pieces.w_queen, Pieces.w_king]
 }
 
 fun get_piece_dst(board:Board, piece:Pieces) {
