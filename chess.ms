@@ -207,7 +207,7 @@ class PGNScanner {
         this.txt = txt
         this.tokens = []
         this.curr_token = 0
-        ~tokenize(txt)
+        ~this.tokenize(txt)
     }
 
     fun tokenize(txt:String) {
@@ -290,14 +290,14 @@ class PGNScanner {
     }
 
     fun expect(type:TokenType, msg:String) {
-        t = advance()
+        t = this.advance()
         assert(t.type == type, msg)
         return t.value
     }
 
     fun skip_ws() {
-        while(check(TokenType.WS)) {
-            ~advance()
+        while(this.check(TokenType.WS)) {
+            ~this.advance()
         }
     }
 
