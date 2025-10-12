@@ -41,7 +41,7 @@ fun is_white(piece:Pieces) {
 }
 
 class Move {
-    fun Move(from:List, to:List, piece:Pieces, notation:String) {
+    fun Move(from:List, to:List, piece:Pieces, notation:String, check:Bool, mate:Bool, promotion_piece:[Pieces,NilType]=nil) {
         assert(from.length() == 2, "move starting position has to be 2d array of ints")
         assert(to.length() == 2, "move ending position has to be 2d array of ints")
         this.from = from
@@ -49,6 +49,9 @@ class Move {
         this.piece = piece
         this.notation = notation
         this.castle = false
+        this.check = check
+        this.mate = mate
+        this.promotion_piece = promotion_piece
     }
 
     fun __String() {
@@ -57,11 +60,14 @@ class Move {
 }
 
 class CastleMove : Move {
-    fun CastleMove(short:Bool, white:Bool, notation:String) {
+    fun CastleMove(short:Bool, white:Bool, notation:String, check:Bool, mate:Bool) {
         this.castle = true
         this.short = short
         this.white = white
         this.notation = notation
+        this.check = check
+        this.mate = mate
+        this.promotion_piece = nil
     }
 
     fun __String() {
@@ -512,11 +518,13 @@ fun parse_move(scanner:PGNScanner, white:Bool, board:Board) {
     move = nil
     if (scanner.check(TokenType.SHORT_CASTLE)) {
         ~scanner.advance()
-        move = CastleMove(true, white, "0-0")
+        // TODO: Add check and mate check
+        move = CastleMove(true, white, "0-0", false, false)
     }
     else if (scanner.check(TokenType.LONG_CASTLE)) {
         ~scanner.advance()
-        move = CastleMove(false, white, "0-0-0")
+        // TODO: Add check and mate check
+        move = CastleMove(false, white, "0-0-0", false, false)
     } else {
         piece = nil
         column1 = nil
@@ -607,7 +615,7 @@ fun parse_move(scanner:PGNScanner, white:Bool, board:Board) {
             to = [column1, row1]
             from = find_source(board, to, piece, nil, nil)
         }
-        move = Move(from, to, piece, notation)
+        move = Move(from, to, piece, notation, check, mate, promotion_piece)
     }
     ~board.apply_move(move)
     return move

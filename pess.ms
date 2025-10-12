@@ -1,25 +1,46 @@
 #!/usr/bin/moss
 
 d"""
-App for converting chess games into intstructions for
+App for converting chess games into instructions for
 spacial paintings.
 """
 
 import chess.*
 
-fun format_square(v:Int) {
-    if (v > 99)
-        return v ++ " "
-    else if (v > 9)
-        return " " ++ v ++ " "
-    else
-        return "  " ++ v ++ " "
+class Color {
+    fun Color(a:Int=255, r:Int=0, g:Int=0, b:Int=0) {
+        this.a = a
+        this.r = r
+        this.g = g
+        this.b = b
+    }
+
+    fun (+)(v) {
+        return Color(this.a, this.r + v, this.g + v, this.b + v)
+    }
+
+    fun __String() {
+        rgba = lshift((this.r and 0xFF), 24) or lshift((this.g and 0xFF), 16) or lshift((this.b and 0xFF), 8) or (this.a and 0xFF)
+        return hex(rgba)
+    }
+}
+
+fun format_square(v:Color) {
+    x = String(v)
+    pad_total = 12 - x.length()
+    left = pad_total / 2
+    right = pad_total - left
+
+    return (" " * left) ++ x ++ (" " * right)
 }
 
 class Canvas {
 
     fun Canvas() {
-        this.squares = [[0 : _ = 0..8] : __ = 0..8]
+        this.squares = []
+        for (x: 0..8) {
+            ~this.squares.append([Color() : _ = 0..8])
+        }
     }
 
     fun draw_starting(board:Board) {
@@ -72,7 +93,9 @@ class Canvas {
                 }
                 // TODO:
             }
-            //this.squares[move.to[1]][move.to[0]] += 1
+            if (move.check) {
+                this.squares[move.to[1]][move.to[0]].r += 40
+            }
         }
     }
 
