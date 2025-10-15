@@ -17,27 +17,28 @@ enum Pieces {
     b_king
 }
 
+fun is_white(piece:Pieces) {
+    return piece in [Pieces.w_pawn, Pieces.w_rook, Pieces.w_knight, Pieces.w_bishop, Pieces.w_queen, Pieces.w_king]
+}
+
 fun piece2str(p:Pieces, p_for_pawn:Bool=true) {
+    color = is_white(p) ? "\q033[37;43m" : "\q033[30;43m"
     switch(p) {
         case Pieces.w_pawn, Pieces.b_pawn: {
             if (p_for_pawn)
-                return "p"
+                return f"{color}p\q033[0m"
             return ""
         }
-        case Pieces.w_rook, Pieces.b_rook: return "R"
-        case Pieces.w_knight, Pieces.b_knight: return "N"
-        case Pieces.w_bishop, Pieces.b_bishop: return "B"
-        case Pieces.w_queen, Pieces.b_queen: return "Q"
-        case Pieces.w_king, Pieces.b_king: return "K"
+        case Pieces.w_rook, Pieces.b_rook: return f"{color}R\q033[0m"
+        case Pieces.w_knight, Pieces.b_knight: return f"{color}N\q033[0m"
+        case Pieces.w_bishop, Pieces.b_bishop: return f"{color}B\q033[0m"
+        case Pieces.w_queen, Pieces.b_queen: return f"{color}Q\q033[0m"
+        case Pieces.w_king, Pieces.b_king: return f"{color}K\q033[0m"
         default: {
             assert(false, "missing case")
             return "?"
         }
     }
-}
-
-fun is_white(piece:Pieces) {
-    return piece in [Pieces.w_pawn, Pieces.w_rook, Pieces.w_knight, Pieces.w_bishop, Pieces.w_queen, Pieces.w_king]
 }
 
 class Move {
@@ -474,7 +475,6 @@ fun get_piece_dst(board:Board, piece:Pieces) {
         }
         row_num += 1
     }
-
     return squares
 }
 
@@ -495,13 +495,35 @@ fun find_source(board:Board, to:List, piece:Pieces, col, row) {
     assert(possible.length() >= 1, f"Impossible move '{to}'")
     if (possible.length() == 1)
         return possible[0]
+    filtered = []
     for (pos: possible) {
         if (col != nil && pos[0] == col) {
-            return pos
+            ~filtered.append(pos)
         }
         if (row != nil && pos[1] == row) {
-            return pos
+            ~filtered.append(pos)
         }
+    }
+    if (filtered.length() == 1) {
+        return filtered[0]
+    } else if (filtered.length() > 1) {
+        assert(filtered.length() != 0, "0 length of filtered")
+        highest = nil
+        for (pos: filtered) {
+            if (highest == nil) {
+                highest = pos
+                continue
+            }
+            if (is_white(piece)) {
+                if (pos[1] > highest[1])
+                    highest = pos
+            } else {
+                if (pos[1] < highest[1])
+                    highest = pos
+            }
+        }
+        assert(highest != nil, "nothing matched")
+        return highest
     }
 
     dsts = get_piece_dst(board, piece)
@@ -511,7 +533,7 @@ fun find_source(board:Board, to:List, piece:Pieces, col, row) {
         }
     }
 
-    assert(false, f"Incorrectly specified move '{to}'")
+    assert(false, f"Incorrectly specified move to: '{to}', piece: {piece}, col: {col}, row: {row}")
 }
 
 fun parse_move(scanner:PGNScanner, white:Bool, board:Board) {

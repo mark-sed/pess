@@ -253,7 +253,7 @@ for (i : 0..game.moves.length()) {
     ~board.move()
     ~print(board)
     ~print(canvas)
-    //input()
+    //~input()
 }
 
 ~print(canvas)
