@@ -22,7 +22,7 @@ fun is_white(piece:Pieces) {
 }
 
 fun piece2str(p:Pieces, p_for_pawn:Bool=true) {
-    color = is_white(p) ? "\q033[37;43m" : "\q033[30;43m"
+    color = is_white(p) ? "\q033[37;100m" : "\q033[30;100m"
     switch(p) {
         case Pieces.w_pawn, Pieces.b_pawn: {
             if (p_for_pawn)
@@ -42,7 +42,7 @@ fun piece2str(p:Pieces, p_for_pawn:Bool=true) {
 }
 
 class Move {
-    fun Move(from:List, to:List, piece:Pieces, notation:String, check:Bool, mate:Bool, promotion_piece:[Pieces,NilType]=nil) {
+    fun Move(from:List, to:List, piece:Pieces, notation:String, check:Bool, mate:Bool, promotion_piece:[NilType,Pieces]=nil) {
         assert(from.length() == 2, "move starting position has to be 2d array of ints")
         assert(to.length() == 2, "move ending position has to be 2d array of ints")
         this.from = from
@@ -150,7 +150,11 @@ class Board {
                 this.board[7][0] = nil
             }   
         } else {
-            this.board[move.to[1]][move.to[0]] = this.board[move.from[1]][move.from[0]]
+            if (move.promotion_piece != nil) {
+                this.board[move.to[1]][move.to[0]] = move.promotion_piece
+            } else {
+                this.board[move.to[1]][move.to[0]] = this.board[move.from[1]][move.from[0]]
+            }
             this.board[move.from[1]][move.from[0]] = nil
         }
     }
@@ -271,6 +275,7 @@ class PGNScanner {
                     case "#": type = TokenType.MATE
                     case "x": type = TokenType.TAKES
                     case "*": type = TokenType.RESULT
+                    case "=": type = TokenType.PROMOTION
                     default: assert(false, "Unknown symbol: " ++ c)
                 }
                 token = PGNToken(type, c)
@@ -637,7 +642,12 @@ fun parse_move(scanner:PGNScanner, white:Bool, board:Board) {
             to = [column1, row1]
             from = find_source(board, to, piece, nil, nil)
         }
-        move = Move(from, to, piece, notation, check, mate, promotion_piece)
+
+        promo_piece = nil
+        if (promotion_piece != nil) {
+            promo_piece = letter2piece(promotion_piece, white)
+        }
+        move = Move(from, to, piece, notation, check, mate, promo_piece)
     }
     ~board.apply_move(move)
     return move

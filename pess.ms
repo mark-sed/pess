@@ -16,7 +16,7 @@ class Color {
     }
 
     fun (+)(v) {
-        return Color(this.a + v, this.r, this.g, this.b) // TODO: remove multiplier
+        return Color(this.a + v, this.r, this.g, this.b)
     }
 
     fun hexc(v) {
@@ -41,7 +41,7 @@ fun format_square(v:Color) {
 }
 
 class Canvas {
-    fun Canvas(color_check:Bool=false, color_castle:Bool=false) {
+    fun Canvas(color_check:Bool=false, color_mate:Bool=false, color_castle:Bool=false, color_promotion:Bool=false) {
         this.squares = []
         for (x: 0..8) {
             ~this.squares.append([Color() : _ = 0..8])
@@ -49,19 +49,25 @@ class Canvas {
 
         this.color_check = color_check
         this.color_castle = color_castle
+        this.color_mate = color_mate
+        this.color_promotion = color_promotion
     }
 
     // Normalize function to put values into 0-255 range.
-    fun normalize() {
+    fun normalize_rgb() {
         flatten = []
         for (row: this.squares) {
             for (v: row) {
-                ~flatten.append(v.r, v.g, v.b, v.a)
+                ~flatten.append(v.r, v.g, v.b)
             }
         }
 
         vmin = min(flatten)
         vmax = max(flatten)
+        if (vmin == vmax) {
+            vmin = 0
+            vmax = 1
+        }
 
         for (row: 0..this.squares.length()) {
             for (col: 0..this.squares.length()) {
@@ -69,8 +75,111 @@ class Canvas {
                 r = Int((c.r - vmin) * 255 / (vmax - vmin))
                 g = Int((c.g - vmin) * 255 / (vmax - vmin))
                 b = Int((c.b - vmin) * 255 / (vmax - vmin))
+                this.squares[row][col] = Color(c.a, r, g, b)
+            }
+        }
+    }
+
+    fun normalize_alpha() {
+        flatten = []
+        for (row: this.squares) {
+            for (v: row) {
+                ~flatten.append(v.a)
+            }
+        }
+
+        vmin = min(flatten)
+        vmax = max(flatten)
+        if (vmin == vmax) {
+            vmin = 0
+            vmax = 1
+        }
+
+        for (row: 0..this.squares.length()) {
+            for (col: 0..this.squares.length()) {
+                c = this.squares[row][col]
                 a = Int((c.a - vmin) * 255 / (vmax - vmin))
-                this.squares[row][col] = Color(a, r, g, b)
+                this.squares[row][col] = Color(a, c.r, c.g, c.b)
+            }
+        }
+    }
+
+    fun normalize_to_black() {
+        flatten = []
+        for (row: this.squares) {
+            for (v: row) {
+                if (v.r == 0 && v.g == 0 && v.b == 0)
+                    ~flatten.append(v.a)
+            }
+        }
+        assert(flatten.length() > 1, "too few black only values")
+
+        vmin = min(flatten)
+        vmax = max(flatten)
+        if (vmin == vmax) {
+            vmin = 0
+            vmax = 1
+        }
+
+        for (row: 0..this.squares.length()) {
+            for (col: 0..this.squares.length()) {
+                c = this.squares[row][col]
+                a = Int((c.a - vmin) * 255 / (vmax - vmin))
+                this.squares[row][col] = Color(a, c.r, c.g, c.b)
+            }
+        }
+    }
+
+    fun normalize_only_black() {
+        flatten = []
+        for (row: this.squares) {
+            for (v: row) {
+                if (v.r == 0 && v.g == 0 && v.b == 0)
+                    ~flatten.append(v.a)
+            }
+        }
+        if (flatten.length() <= 1)
+            return
+
+        vmin = min(flatten)
+        vmax = max(flatten)
+        if (vmin == vmax) {
+            vmin = 0
+            vmax = 1
+        }
+
+        for (row: 0..this.squares.length()) {
+            for (col: 0..this.squares.length()) {
+                c = this.squares[row][col]
+                if (c.r != 0 or c.g != 0 or c.b != 0)
+                    continue
+                a = Int((c.a - vmin) * 255 / (vmax - vmin))
+                this.squares[row][col] = Color(a, c.r, c.g, c.b)
+            }
+        }
+    }
+
+    fun normalize_only_colored() {
+        flatten = []
+        for (row: this.squares) {
+            for (v: row) {
+                if (v.r != 0 || v.g != 0 || v.b != 0)
+                    ~flatten.append(v.a)
+            }
+        }
+        if (flatten.length() <= 1)
+            return
+
+        vmin = min(flatten)
+        vmax = max(flatten)
+
+        for (row: 0..this.squares.length()) {
+            for (col: 0..this.squares.length()) {
+                c = this.squares[row][col]
+                if (c.r == 0 and c.g == 0 and c.b == 0)
+                    continue
+                a = Int((c.a - vmin) * 255 / (vmax - vmin))
+                this.squares[row][col] = Color(a, c.r, c.g, c.b)
             }
         }
     }
@@ -90,9 +199,47 @@ class Canvas {
     }
 
     fun check_colorize(x, y) {
-        this.squares[x][y].r += 1
-        this.squares[x][y].b += 2
+        this.squares[x][y].r += 87
+        this.squares[x][y].g += 66
+        this.squares[x][y].b += 245
         this.squares[x][y] += 1
+    }
+
+    fun mate_colorize(x, y) {
+        this.squares[x][y].r = 245
+        this.squares[x][y].g = 66
+        this.squares[x][y].b = 66
+        this.squares[x][y] += 1
+    }
+
+    fun castle_colorize(x, y) {
+        this.squares[x][y].r += 237
+        this.squares[x][y].g += 187
+        this.squares[x][y].b += 50
+        this.squares[x][y] += 1
+    }
+
+    fun promotion_colorize(x, y) {
+        this.squares[x][y].r += 241
+        this.squares[x][y].g += 169
+        this.squares[x][y].b += 252
+        this.squares[x][y] += 1
+    }
+
+    fun colorize(move:Move, x, y) {
+        if (this.color_check && move.check) {
+            ~this.check_colorize(x, y)
+        }
+        else if (this.color_mate && move.mate) {
+            ~this.mate_colorize(x, y)
+        }
+
+        if (this.color_castle && move.castle) {
+            ~this.castle_colorize(x, y)
+        }
+        if (this.color_promotion && move.promotion_piece != nil) {
+            ~this.promotion_colorize(x, y)
+        }
     }
 
     fun draw_full_move(move:Move) {
@@ -102,24 +249,36 @@ class Canvas {
                 this.squares[0][5] += 2
                 this.squares[0][6] += 2
                 this.squares[0][7] += 1
+                for (row: [4, 5, 5, 6, 6, 7]) {
+                    ~this.colorize(move, 0, row)
+                }
             } else if (not move.short and move.white) {
                 this.squares[0][0] += 1
                 this.squares[0][1] += 1
                 this.squares[0][2] += 2
                 this.squares[0][3] += 2
                 this.squares[0][4] += 1
+                for (row: [0, 1, 2, 2, 3, 3, 4]) {
+                    ~this.colorize(move, 0, row)
+                }
             } else if (move.short and not move.white) {
                 this.squares[7][4] += 1
                 this.squares[7][5] += 2
                 this.squares[7][6] += 2
                 this.squares[7][7] += 1
+                for (row: [4, 5, 5, 6, 6, 7]) {
+                    ~this.colorize(move, 7, row)
+                }
             } else {
                 this.squares[7][0] += 1
                 this.squares[7][1] += 1
                 this.squares[7][2] += 2
                 this.squares[7][3] += 2
                 this.squares[7][4] += 1
-            }   
+                for (row: [0, 1, 2, 2, 3, 3, 4]) {
+                    ~this.colorize(move, 7, row)
+                }
+            }
         } else {
             piece = move.piece
             switch (piece) {
@@ -154,6 +313,7 @@ class Canvas {
                     c = sc
                     while ([r, c] != [er + step_r, ec + step_c]) {
                         this.squares[r][c] += 1
+                        ~this.colorize(move, r, c)
                         if ([r, c] == [er, ec])
                             break
                         r += step_r
@@ -190,9 +350,7 @@ class Canvas {
                     c = sc
                     while ([r, c] != [er + step_r, ec + step_c]) {
                         this.squares[r][c] += 1
-                        if (this.color_check && move.check) {
-                            ~this.check_colorize(r, c)
-                        }
+                        ~this.colorize(move, r, c)
                         if ([r, c] == [er, ec])
                             break
                         r += step_r
@@ -229,9 +387,7 @@ class Canvas {
                     c = sc
                     while ([r, c] != [er + step_r, ec + step_c]) {
                         this.squares[r][c] += 1
-                        if (this.color_check && move.check) {
-                            ~this.check_colorize(r, c)
-                        }
+                        ~this.colorize(move, r, c)
                         if ([r, c] == [er, ec])
                             break
                         r += step_r
@@ -268,9 +424,7 @@ class Canvas {
                     c = sc
                     while ([r, c] != [er + step_r, ec + step_c]) {
                         this.squares[r][c] += 1
-                        if (this.color_check && move.check) {
-                            ~this.check_colorize(r, c)
-                        }
+                        ~this.colorize(move, r, c)
                         if ([r, c] == [er, ec])
                             break
                         r += step_r
@@ -306,6 +460,7 @@ class Canvas {
                     r = sr + step_r
                     c = sc + step_c
                     this.squares[r][c] += 1
+                    ~this.colorize(move, r, c)
                 }
                 case Pieces.w_knight, Pieces.b_knight: {
                     sc, sr = move.from
@@ -333,24 +488,29 @@ class Canvas {
                     r = sr
                     c = sc
                     this.squares[r][c] += 1
+                    ~this.colorize(move, r, c)
                     if (Math.abs(dr) == 2) {
                         // move two steps in row direction
                         for (i : 1..3) {
                             r += step_r
                             this.squares[r][c] += 1
+                            ~this.colorize(move, r, c)
                         }
                         // move one step in column direction
                         c += step_c
                         this.squares[r][c] += 1
+                        ~this.colorize(move, r, c)
                     } else {
                         // move two steps in column direction
                         for (i : 1..3) {
                             c += step_c
                             this.squares[r][c] += 1
+                            ~this.colorize(move, r, c)
                         }
                         // move one step in row direction
                         r += step_r
                         this.squares[r][c] += 1
+                        ~this.colorize(move, r, c)
                     }
                 }
             }
@@ -362,21 +522,27 @@ class Canvas {
             if (move.short and move.white) {
                 this.squares[0][6] += 1
                 this.squares[0][5] += 1
+                ~this.colorize(move, 0, 6)
+                ~this.colorize(move, 0, 5)
             } else if (not move.short and move.white) {
                 this.squares[0][2] += 1
                 this.squares[0][3] += 1
+                ~this.colorize(move, 0, 2)
+                ~this.colorize(move, 0, 3)
             } else if (move.short and not move.white) {
                 this.squares[7][6] += 1
                 this.squares[7][5] += 1
+                ~this.colorize(move, 7, 6)
+                ~this.colorize(move, 7, 5)
             } else {
                 this.squares[7][2] += 1
                 this.squares[7][3] += 1
+                ~this.colorize(move, 7, 2)
+                ~this.colorize(move, 7, 3)
             }   
         } else {
             this.squares[move.to[1]][move.to[0]] += 1
-        }
-        if (this.color_check && move.check) {
-            ~this.check_colorize(move.to[1], move.to[0])
+            ~this.colorize(move, move.to[1], move.to[0])
         }
     }
 
@@ -469,7 +635,7 @@ class Canvas {
             <rect x="{7*width}" y="{7*width}" width="{width}" height="{width}" fill="#{s[0][7]}"/>
         </g>
         </svg>
-        """, "html")
+        """, "html")//"""
     }
 
     fun __String() {
@@ -484,6 +650,7 @@ class Canvas {
     }
 }
 
+
 if (args.length() != 1) {
     exit("Error: Program takes path to pgn file.\n")
 }
@@ -492,7 +659,7 @@ game_notation = with_open(args[0], fun(f)="\n".join(f.readlines()))
 game = pgn.parse_pgn(game_notation)
 
 board = Board(game)
-canvas = Canvas(true, true)
+canvas = Canvas(true, true, true, true)
 //~canvas.draw_starting(board)
 
 for (i : 0..game.moves.length()) {
@@ -506,7 +673,11 @@ for (i : 0..game.moves.length()) {
 ~print(canvas)
 ~print(board)
 
-~canvas.normalize()
+~canvas.normalize_rgb()
+~canvas.normalize_alpha()
+//~canvas.normalize_only_black()
+//~canvas.normalize_only_colored()
+
 canvas.to_html()
 Note("<b>"++args[0]++"</b>", "html")
 game_notation
